@@ -42,7 +42,7 @@ def generate_post_with_gemini(news_title, news_link):
     """
     
     # Используем ту самую рабочую модель из твоего списка
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-3.8-flash"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
     
     headers = {'Content-Type': 'application/json'}
