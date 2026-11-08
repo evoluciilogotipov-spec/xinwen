@@ -74,25 +74,52 @@ def generate_post_with_gemini(news_title, news_link):
 
 def main():
     print("Начинаем проверку новостей...")
+    
+    # 1. Читаем файл с памятью (какие новости мы уже отправили)
+    sent_links = []
+    if os.path.exists("sent_news.txt"):
+        with open("sent_news.txt", "r", encoding="utf-8") as f:
+            sent_links = [line.strip() for line in f.readlines()]
+
     feed = feedparser.parse(RSS_URL)
     
     if not feed.entries:
         print("Новостей не найдено.")
         return
 
-    # Берем 1 самую свежую новость
-    entry = feed.entries[0]
-    title = entry.title
-    link = entry.link
+    new_news_found = 0
     
-    # Генерируем текст с помощью нейросети
-    post_text = generate_post_with_gemini(title, link)
-    
-    if post_text:
-        send_to_telegram(post_text)
-        print("Пост успешно сгенерирован и отправлен!")
-    else:
-        print("Не удалось сгенерировать пост, пропускаем.")
+    # 2. Проходимся по ленте и ищем СВЕЖУЮ новость
+    for entry in feed.entries:
+        title = entry.title
+        link = entry.link
+        
+        if link in sent_links:
+            # Если ссылка уже есть в памяти, пропускаем её
+            continue
+            
+        print(f"Найдена НОВАЯ новость: {title}")
+        
+        # Генерируем пост и отправляем
+        post_text = generate_post_with_gemini(title, link)
+        if post_text:
+            send_to_telegram(post_text)
+            print("Пост успешно отправлен!")
+            
+            # 3. Записываем ссылку в память, чтобы больше не повторяться
+            with open("sent_news.txt", "a", encoding="utf-8") as f:
+                f.write(link + "\n")
+                
+            new_news_found += 1
+            
+            # Отправляем максимум 2 новости за один запуск, чтобы не спамить
+            if new_news_found >= 2:
+                break
+                
+        time.sleep(2)
+
+    if new_news_found == 0:
+        print("Новых новостей нет. Все уже опубликованы.")
 
 if __name__ == "__main__":
     main()
