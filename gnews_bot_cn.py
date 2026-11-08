@@ -1,4 +1,4 @@
-import os
+=import os
 import feedparser
 import requests
 import time
@@ -29,10 +29,7 @@ def send_to_telegram(text):
 def generate_post_with_gemini(news_title, news_link):
     print(f"Генерируем пост для новости: {news_title}")
     
-   def generate_post_with_gemini(news_title, news_link):
-    print(f"Генерируем пост для новости: {news_title}")
-    
-    # Собираем текст по кусочкам (чтобы GitHub не красил всё в синий)
+    # Собираем текст по кусочкам (без длинных кавычек)
     prompt = "Ты — спортивный аналитик и редактор Telegram-канала о ФК «Барселона».\n"
     prompt += f"Напиши пост на основе этой новости: {news_title}\n\n"
     prompt += "ТВОЙ СТИЛЬ:\n"
@@ -42,13 +39,14 @@ def generate_post_with_gemini(news_title, news_link):
     prompt += "ФОРМАТ ПОСТА:\n"
     prompt += "1. Начни с одного эмодзи (например: ⚽️, 📰, 📊, 🏟, 💰).\n"
     prompt += "2. Напиши 2-3 абзаца с сутью новости.\n"
-    prompt += "3. В конце добавь ссылку на источник: <a href='" + news_link + "'>Источник</a>\n"
+    prompt += f"3. В конце добавь ссылку на источник: <a href='{news_link}'>Источник</a>\n"
     prompt += "4. И сразу под источником добавь ссылку на наш канал: <a href='https://t.me/newsbarca4'>@newsbarca4</a>\n\n"
     prompt += "ПРИМЕР:\n"
     prompt += "🏟 «Метрополитано» станет проверкой для Флика: научилась ли команда побеждать разными способами.\n\n"
-    prompt += "<a href='https://www.euro-football.ru'>Источник</a>\n"
+    prompt += f"<a href='{news_link}'>Источник</a>\n"
     prompt += "<a href='https://t.me/newsbarca4'>@newsbarca4</a>"
     
+    # Список моделей
     models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
     
     for model_name in models:
