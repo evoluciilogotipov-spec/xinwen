@@ -89,6 +89,12 @@ def main():
             title = entry.title
             link = entry.link
             
+            # --- ФИЛЬТР GOOGLE: если новость ведет на Euro-Football, пропускаем ---
+            if "euro-football.ru" in link:
+                print(f"Игнорируем Euro-Football (спам): {title}")
+                continue
+            # --------------------------------------------------------------------
+            
             # 2. Спрашиваем нейросеть: это дубль?
             if is_duplicate(title, past_titles):
                 print(f"ИИ сказал, что это дубль: {title}")
