@@ -41,24 +41,36 @@ def generate_post_with_gemini(news_title, news_link):
     - Оформи пост с помощью HTML-тегов (например, <b>жирный</b> для важных слов).
     """
     
-    # Используем ту самую рабочую модель из твоего списка
-    model_name = "gemini-3.8-flash"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    # Список моделей: если первая занята, бот попробует вторую, потом третью
+    models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"]
     
-    headers = {'Content-Type': 'application/json'}
-    data = {"contents": [{"parts": [{"text": prompt}]}]}
-    
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code != 200:
-            print(f"Ошибка API Gemini: {response.text}")
-            return None
-        result = response.json()
-        post_text = result['candidates'][0]['content']['parts'][0]['text']
-        return post_text
-    except Exception as e:
-        print(f"Ошибка при обращении к Gemini: {e}")
-        return None
+    for model_name in models:
+        print(f"Пробуем модель: {model_name}...")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        headers = {'Content-Type': 'application/json'}
+        data = {"contents": [{"parts": [{"text": prompt}]}]}
+        
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            
+            # Если сервер перегружен (503), ждем 5 секунд и пробуем следующую модель
+            if response.status_code == 503:
+                print(f"Модель {model_name} перегружена. Ждем 5 секунд...")
+                time.sleep(5)
+                continue
+                
+            if response.status_code != 200:
+                print(f"Ошибка API ({model_name}): {response.text}")
+                continue
+                
+            # Если всё ок, возвращаем текст
+            result = response.json()
+            return result['candidates'][0]['content']['parts'][0]['text']
+            
+        except Exception as e:
+            print(f"Ошибка при обращении к {model_name}: {e}")
+            
+    return None
 
 def main():
     print("Начинаем проверку новостей...")
