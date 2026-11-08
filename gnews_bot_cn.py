@@ -8,7 +8,7 @@ TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # Ссылка на RSS-ленту с новостями Барселоны (например, от Спорт-Экспресс или другого сайта)
-RSS_URL = "https://www.sports.ru/rss/barcelona.xml" 
+SS_URL = "https://news.google.com/rss/search?q=%D0%91%D0%B0%D1%80%D1%81%D0%B5%D0%BB%D0%BE%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru"
 
 def send_to_telegram(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
