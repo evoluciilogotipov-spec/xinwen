@@ -56,7 +56,7 @@ def generate_post_with_gemini(news_title, news_link):
             # Если сервер перегружен (503), ждем 5 секунд и пробуем следующую модель
             if response.status_code == 503:
                 print(f"Модель {model_name} перегружена. Ждем 5 секунд...")
-                time.sleep(5)
+                time.sleep(10)
                 continue
                 
             if response.status_code != 200:
