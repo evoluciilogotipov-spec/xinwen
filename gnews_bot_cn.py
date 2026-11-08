@@ -78,10 +78,17 @@ def generate_post_with_gemini(news_title, news_link):
 def main():
     print("Начинаем проверку новостей...")
     
+    # 1. Читаем память: какие ссылки и заголовки мы уже отправляли
     sent_links = []
+    sent_titles = []
     if os.path.exists("sent_news.txt"):
         with open("sent_news.txt", "r", encoding="utf-8") as f:
-            sent_links = [line.strip() for line in f.readlines()]
+            lines = f.readlines()
+            for line in lines:
+                if line.startswith("LINK:"):
+                    sent_links.append(line.replace("LINK:", "").strip())
+                elif line.startswith("TITLE:"):
+                    sent_titles.append(line.replace("TITLE:", "").strip().lower())
 
     feed = feedparser.parse(RSS_URL)
     
@@ -95,7 +102,9 @@ def main():
         title = entry.title
         link = entry.link
         
-        if link in sent_links:
+        # Проверяем, есть ли уже такая ссылка ИЛИ очень похожий заголовок
+        if link in sent_links or title.lower() in sent_titles:
+            print(f"Пропускаем (уже было): {title}")
             continue
             
         print(f"Найдена НОВАЯ новость: {title}")
@@ -105,12 +114,15 @@ def main():
             send_to_telegram(post_text)
             print("Пост успешно отправлен!")
             
+            # 3. Сохраняем И ссылку, И заголовок в память
             with open("sent_news.txt", "a", encoding="utf-8") as f:
-                f.write(link + "\n")
+                f.write(f"LINK:{link}\n")
+                f.write(f"TITLE:{title}\n")
                 
             new_news_found += 1
             
-            if new_news_found >= 2:
+            # Отправляем максимум 1 или 2 новости за раз (поставь 1, если хочешь строго по одной)
+            if new_news_found >= 1:
                 break
                 
         time.sleep(2)
