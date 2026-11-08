@@ -29,19 +29,26 @@ def send_to_telegram(text):
 def generate_post_with_gemini(news_title, news_link):
     print(f"Генерируем пост для новости: {news_title}")
     
-    prompt = f"""
-    Ты — профессиональный спортивный журналист, который ведёт Telegram-канал о ФК «Барселона».
-    Напиши интересный и живой пост с эмодзи перед заголовком на основе этой новости: "{news_title}".
+   def generate_post_with_gemini(news_title, news_link):
+    print(f"Генерируем пост для новости: {news_title}")
     
-    Требования:
-    - Длина поста: 3-7 предложений.
-    - Добавь немного эмоций и анализа (например, как это повлияет на команду).
-    - Не используй канцелярит, пиши как для болельщиков.
-    - В конце обязательно добавь ссылку на источник: {news_link}
-    - Оформи пост с помощью HTML-тегов (например, <b>жирный</b> для важных слов).
-    """
+    # Собираем текст по кусочкам (чтобы GitHub не красил всё в синий)
+    prompt = "Ты — спортивный аналитик и редактор Telegram-канала о ФК «Барселона».\n"
+    prompt += f"Напиши пост на основе этой новости: {news_title}\n\n"
+    prompt += "ТВОЙ СТИЛЬ:\n"
+    prompt += "- Пиши строго, фактологически, с цифрами и аналитикой.\n"
+    prompt += "- Никаких лишних эмоций и кликбейта.\n"
+    prompt += "- Используй короткие и четкие предложения.\n\n"
+    prompt += "ФОРМАТ ПОСТА:\n"
+    prompt += "1. Начни с одного эмодзи (например: ⚽️, 📰, 📊, 🏟, 💰).\n"
+    prompt += "2. Напиши 2-3 абзаца с сутью новости.\n"
+    prompt += "3. В конце добавь ссылку на источник: <a href='" + news_link + "'>Источник</a>\n"
+    prompt += "4. И сразу под источником добавь ссылку на наш канал: <a href='https://t.me/newsbarca4'>@newsbarca4</a>\n\n"
+    prompt += "ПРИМЕР:\n"
+    prompt += "🏟 «Метрополитано» станет проверкой для Флика: научилась ли команда побеждать разными способами.\n\n"
+    prompt += "<a href='https://www.euro-football.ru'>Источник</a>\n"
+    prompt += "<a href='https://t.me/newsbarca4'>@newsbarca4</a>"
     
-    # Список моделей: если первая занята, бот попробует вторую, потом третью
     models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
     
     for model_name in models:
@@ -53,9 +60,8 @@ def generate_post_with_gemini(news_title, news_link):
         try:
             response = requests.post(url, headers=headers, json=data)
             
-            # Если сервер перегружен (503), ждем 5 секунд и пробуем следующую модель
             if response.status_code == 503:
-                print(f"Модель {model_name} перегружена. Ждем 5 секунд...")
+                print(f"Модель {model_name} перегружена. Ждем 10 секунд...")
                 time.sleep(10)
                 continue
                 
@@ -63,7 +69,6 @@ def generate_post_with_gemini(news_title, news_link):
                 print(f"Ошибка API ({model_name}): {response.text}")
                 continue
                 
-            # Если всё ок, возвращаем текст
             result = response.json()
             return result['candidates'][0]['content']['parts'][0]['text']
             
@@ -75,7 +80,6 @@ def generate_post_with_gemini(news_title, news_link):
 def main():
     print("Начинаем проверку новостей...")
     
-    # 1. Читаем файл с памятью (какие новости мы уже отправили)
     sent_links = []
     if os.path.exists("sent_news.txt"):
         with open("sent_news.txt", "r", encoding="utf-8") as f:
@@ -89,30 +93,25 @@ def main():
 
     new_news_found = 0
     
-    # 2. Проходимся по ленте и ищем СВЕЖУЮ новость
     for entry in feed.entries:
         title = entry.title
         link = entry.link
         
         if link in sent_links:
-            # Если ссылка уже есть в памяти, пропускаем её
             continue
             
         print(f"Найдена НОВАЯ новость: {title}")
         
-        # Генерируем пост и отправляем
         post_text = generate_post_with_gemini(title, link)
         if post_text:
             send_to_telegram(post_text)
             print("Пост успешно отправлен!")
             
-            # 3. Записываем ссылку в память, чтобы больше не повторяться
             with open("sent_news.txt", "a", encoding="utf-8") as f:
                 f.write(link + "\n")
                 
             new_news_found += 1
             
-            # Отправляем максимум 2 новости за один запуск, чтобы не спамить
             if new_news_found >= 2:
                 break
                 
