@@ -42,7 +42,7 @@ def generate_post_with_gemini(news_title, news_link):
     """
     
     # Список моделей: если первая занята, бот попробует вторую, потом третью
-    models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"]
+    models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
     
     for model_name in models:
         print(f"Пробуем модель: {model_name}...")
