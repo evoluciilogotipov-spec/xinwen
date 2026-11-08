@@ -43,14 +43,12 @@ jobs:
       run: playwright install --with-deps
 
     # 第5步：运行您的主 Python 脚本
-    - name: 5. Run the bot script
-      run: python gnews_bot_cn.py
-      env:
-        # 将您在仓库 Secrets 中设置的密钥作为环境变量注入到脚本中
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
-
+      - name: 5. Run the bot script
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python gnews_bot_cn.py
     # 第6步：提交并推送更新后的“已发送”记录文件
     - name: 6. Commit and push sent logs
       run: |
