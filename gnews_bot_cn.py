@@ -2,14 +2,13 @@ import os
 import feedparser
 import requests
 import time
-import re
+import datetime
+import calendar
 
-# Секреты из GitHub
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# Список новостных лент
 RSS_URLS = [
     "https://www.sports.ru/rss/barcelona.xml",
     "https://www.championat.com/rss/football.xml",
@@ -34,7 +33,6 @@ def generate_post_with_gemini(news_title, news_link):
     prompt += "4. Ссылка на канал: <a href='https://t.me/newsbarca4'>@newsbarca4</a>\n"
     
     models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
-    
     for model_name in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
         data = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -51,13 +49,17 @@ def generate_post_with_gemini(news_title, news_link):
 def main():
     print("Начинаем проверку...")
     
-    # Читаем память (ссылки)
-    sent_links = []
-    if os.path.exists("sent_news.txt"):
-        with open("sent_news.txt", "r", encoding="utf-8") as f:
-            sent_links = [line.strip() for line in f.readlines() if line.strip()]
+    # 1. Читаем время последней публикации
+    last_post_time = 0
+    if os.path.exists("last_post_time.txt"):
+        with open("last_post_time.txt", "r", encoding="utf-8") as f:
+            try:
+                last_post_time = float(f.read().strip())
+            except:
+                pass
 
     total_new_news = 0
+    newest_time = last_post_time
     
     for url in RSS_URLS:
         print(f"Источник: {url}")
@@ -75,9 +77,14 @@ def main():
             title = entry.title
             link = entry.link
             
-            # Проверяем, есть ли такая ссылка в памяти
-            if link in sent_links:
-                print(f"Пропускаем (уже было): {title}")
+            # 2. Получаем время публикации новости
+            pub_time = 0
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                pub_time = calendar.timegm(entry.published_parsed)
+            
+            # 3. Если новость старше последней опубликованной — пропускаем
+            if pub_time > 0 and pub_time <= last_post_time:
+                print(f"Пропускаем (старая): {title}")
                 continue
                 
             print(f"НОВАЯ новость: {title}")
@@ -87,15 +94,19 @@ def main():
                 send_to_telegram(post_text)
                 print("Пост отправлен!")
                 
-                # Сохраняем ссылку
-                with open("sent_news.txt", "a", encoding="utf-8") as f:
-                    f.write(link + "\n")
+                if pub_time > newest_time:
+                    newest_time = pub_time
                     
                 total_new_news += 1
                 news_from_this_source += 1
         
         time.sleep(2)
 
+    # 4. Сохраняем новое время
+    if newest_time > last_post_time:
+        with open("last_post_time.txt", "w", encoding="utf-8") as f:
+            f.write(str(newest_time))
+            
     if total_new_news == 0:
         print("Новых новостей нет.")
 
