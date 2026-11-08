@@ -8,10 +8,9 @@ CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 RSS_URLS = [
-    "https://www.sports.ru/rss/barcelona.xml",
-    "https://www.championat.com/rss/football.xml",
-    "https://www.euro-football.ru/team/barselona/rss",
-    "https://news.google.com/rss/search?q=%D0%91%D0%B0%D1%80%D1%81%D0%B5%D0%BB%D0%BE%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru"
+    "https://www.sports.ru/rss/barcelona.xml",        # Sports.ru (нормальные новости)
+    "https://www.championat.com/rss/football.xml",    # Championat (нормальные новости)
+    "https://news.google.com/rss/search?q=%D0%91%D0%B0%D1%80%D1%81%D0%B5%D0%BB%D0%BE%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru" # Google
 ]
 
 def send_to_telegram(text):
