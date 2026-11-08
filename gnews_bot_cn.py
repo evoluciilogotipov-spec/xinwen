@@ -2,7 +2,7 @@ import os
 import feedparser
 import requests
 import time
-import hashlib
+import re
 
 # Секреты из GitHub
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -11,10 +11,10 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Список новостных лент
 RSS_URLS = [
-    "https://www.sports.ru/rss/barcelona.xml",        # Sports.ru
-    "https://www.championat.com/rss/football.xml",    # Championat (общий футбол)
-    "https://www.euro-football.ru/team/barselona/rss",# Euro-Football
-    "https://news.google.com/rss/search?q=%D0%91%D0%B0%D1%80%D1%81%D0%B5%D0%BB%D0%BE%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru" # Google Новости (100% работает)
+    "https://www.sports.ru/rss/barcelona.xml",
+    "https://www.championat.com/rss/football.xml",
+    "https://www.euro-football.ru/team/barselona/rss",
+    "https://news.google.com/rss/search?q=%D0%91%D0%B0%D1%80%D1%81%D0%B5%D0%BB%D0%BE%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru"
 ]
 
 def send_to_telegram(text):
@@ -79,59 +79,93 @@ def generate_post_with_gemini(news_title, news_link):
             
     return None
 
-def main():
-    print("Начинаем проверку новостей...")
-    
-    # 1. Читаем память
-    sent_hashes = []
-    if os.path.exists("sent_news.txt"):
-        with open("sent_news.txt", "r", encoding="utf-8") as f:
-            sent_hashes = [line.strip() for line in f.readlines() if line.startswith("HASH:")]
+# Храним память прямо в коде (список строк)
+MEMORY = []
 
-    found_new_news = False
+def get_keywords(text):
+    sums = re.findall(r'\d+[\.,]?\d*\s*(?:млн|млрд|миллион|миллиард)', text.lower())
+    names = re.findall(r'\b[А-ЯA-Z][а-яa-z]{3,}\b', text)
+    return set(sums + names)
+
+def main():
+    print("Начинаем проверку...")
     
-    # 2. Проходимся по ВСЕМ источникам
+    # Ищем память в текущем файле
+    global MEMORY
+    try:
+        with open(__file__, "r", encoding="utf-8") as f:
+            content = f.read()
+            match = re.search(r"MEMORY = \[(.*?)\]", content, re.DOTALL)
+            if match:
+                # Восстанавливаем список из строки
+                mem_str = match.group(1).strip()
+                if mem_str:
+                    MEMORY = eval(f"[{mem_str}]")
+    except Exception as e:
+        print(f"Ошибка чтения памяти: {e}")
+
+    total_new_news = 0
+    
     for url in RSS_URLS:
-        print(f"Проверяем источник: {url}")
+        print(f"Источник: {url}")
         feed = feedparser.parse(url)
         
         if not feed.entries:
-            print("Источник пуст.")
             continue
             
+        news_from_this_source = 0
+        
         for entry in feed.entries:
+            if news_from_this_source >= 1:
+                break
+                
             title = entry.title
             link = entry.link
             
-            # Делаем "отпечаток" заголовка (убираем пробелы, приводим к нижнему регистру)
-            # Это нужно, чтобы ловить переписанные нейросетью заголовки
-            clean_title = "".join(title.lower().split())
-            title_hash = "HASH:" + hashlib.md5(clean_title.encode('utf-8')).hexdigest()
+            current_keywords = get_keywords(title)
             
-            # Проверяем, есть ли такой отпечаток в памяти
-            if title_hash in sent_hashes:
+            is_duplicate = False
+            for past_kw in MEMORY:
+                past_set = set(past_kw.split(','))
+                if len(current_keywords.intersection(past_set)) >= 2:
+                    is_duplicate = True
+                    break
+                    
+            if is_duplicate:
                 continue
                 
-            print(f"Найдена НОВАЯ новость: {title}")
-            
+            print(f"НОВАЯ новость: {title}")
             post_text = generate_post_with_gemini(title, link)
+            
             if post_text:
                 send_to_telegram(post_text)
-                print("Пост успешно отправлен!")
                 
-                # Сохраняем отпечаток
-                with open("sent_news.txt", "a", encoding="utf-8") as f:
-                    f.write(title_hash + "\n")
+                # Добавляем в память
+                MEMORY.append(",".join(current_keywords))
+                # Оставляем только последние 30 записей (чтобы код не разрастался)
+                if len(MEMORY) > 30:
+                    MEMORY = MEMORY[-30:]
                     
-                found_new_news = True
-                break  # Отправляем 1 новость и выходим из цикла проверки этого источника
+                total_new_news += 1
+                news_from_this_source += 1
         
-        if found_new_news:
-            break  # Если нашли новость на первом источнике, останавливаемся (чтобы не спамить)
-            
         time.sleep(2)
 
-    if not found_new_news:
+    # Сохраняем память обратно в код
+    try:
+        with open(__file__, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        # Формируем новую строку для MEMORY
+        new_memory_str = ", ".join([f'"{k}"' for k in MEMORY])
+        new_content = re.sub(r"MEMORY = \[(.*?)\]", f"MEMORY = [{new_memory_str}]", content, flags=re.DOTALL)
+        
+        with open(__file__, "w", encoding="utf-8") as f:
+            f.write(new_content)
+    except Exception as e:
+        print(f"Ошибка сохранения памяти: {e}")
+
+    if total_new_news == 0:
         print("Новых новостей нет.")
 
 if __name__ == "__main__":
