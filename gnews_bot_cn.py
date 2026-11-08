@@ -2,13 +2,14 @@ import os
 import feedparser
 import requests
 import time
+import hashlib
 
 # Секреты из GitHub
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# Список новостных лент (мультипоиск)
+# Список новостных лент
 RSS_URLS = [
     "https://www.sports.ru/rss/barcelona.xml",
     "https://www.championat.com/rss/football.xml",
@@ -81,48 +82,33 @@ def main():
     print("Начинаем проверку новостей...")
     
     # 1. Читаем память
-    sent_links = []
-    sent_titles = []
+    sent_hashes = []
     if os.path.exists("sent_news.txt"):
         with open("sent_news.txt", "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            for line in lines:
-                if line.startswith("LINK:"):
-                    sent_links.append(line.replace("LINK:", "").strip())
-                elif line.startswith("TITLE:"):
-                    sent_titles.append(line.replace("TITLE:", "").strip().lower())
+            sent_hashes = [line.strip() for line in f.readlines() if line.startswith("HASH:")]
 
-    # 2. Ищем новости по всем источникам по очереди
     found_new_news = False
     
+    # 2. Проходимся по ВСЕМ источникам
     for url in RSS_URLS:
-        if found_new_news:
-            break
-            
         print(f"Проверяем источник: {url}")
         feed = feedparser.parse(url)
         
         if not feed.entries:
-            print("Источник пуст или недоступен, идем дальше...")
+            print("Источник пуст.")
             continue
             
         for entry in feed.entries:
             title = entry.title
             link = entry.link
             
-            if link in sent_links:
-                continue
-                
-            # Проверка на дубли по ключевым словам
-            already_posted = False
-            for sent_title in sent_titles:
-                old_words = set([w for w in sent_title.lower().split() if len(w) > 3])
-                new_words = set([w for w in title.lower().split() if len(w) > 3])
-                if len(old_words.intersection(new_words)) >= 3:
-                    already_posted = True
-                    break
-                    
-            if already_posted:
+            # Делаем "отпечаток" заголовка (убираем пробелы, приводим к нижнему регистру)
+            # Это нужно, чтобы ловить переписанные нейросетью заголовки
+            clean_title = "".join(title.lower().split())
+            title_hash = "HASH:" + hashlib.md5(clean_title.encode('utf-8')).hexdigest()
+            
+            # Проверяем, есть ли такой отпечаток в памяти
+            if title_hash in sent_hashes:
                 continue
                 
             print(f"Найдена НОВАЯ новость: {title}")
@@ -132,17 +118,20 @@ def main():
                 send_to_telegram(post_text)
                 print("Пост успешно отправлен!")
                 
+                # Сохраняем отпечаток
                 with open("sent_news.txt", "a", encoding="utf-8") as f:
-                    f.write(f"LINK:{link}\n")
-                    f.write(f"TITLE:{title}\n")
+                    f.write(title_hash + "\n")
                     
                 found_new_news = True
-                break  # Отправляем только 1 новость за запуск
-                
-            time.sleep(2)
+                break  # Отправляем 1 новость и выходим из цикла проверки этого источника
+        
+        if found_new_news:
+            break  # Если нашли новость на первом источнике, останавливаемся (чтобы не спамить)
+            
+        time.sleep(2)
 
     if not found_new_news:
-        print("Новых новостей нет. Все уже опубликованы.")
+        print("Новых новостей нет.")
 
 if __name__ == "__main__":
     main()
