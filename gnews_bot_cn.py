@@ -9,10 +9,11 @@ TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# ТОЛЬКО ПРЯМЫЕ ИСТОЧНИКИ (Никакого Google и Euro-Football)
+# Добавил Google на случай, если сайты блокируют GitHub
 RSS_URLS = [
     "https://www.sports.ru/rss/barcelona.xml",
-    "https://www.championat.com/rss/football.xml"
+    "https://www.championat.com/rss/football.xml",
+    "https://news.google.com/rss/search?q=%D0%91%D0%B0%D1%80%D1%81%D0%B5%D0%BB%D0%BE%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru"
 ]
 
 def send_to_telegram(text):
@@ -21,7 +22,7 @@ def send_to_telegram(text):
     try:
         requests.post(url, data=payload)
     except Exception as e:
-        print(f"Ошибка Телеграм: {e}")
+        print(f"❌ Ошибка Телеграм: {e}")
 
 def generate_post_with_gemini(news_title, news_link):
     prompt = "Ты — спортивный аналитик и редактор Telegram-канала о ФК «Барселона».\n"
@@ -38,42 +39,44 @@ def generate_post_with_gemini(news_title, news_link):
         try:
             response = requests.post(url, headers={'Content-Type': 'application/json'}, json=data)
             if response.status_code == 200:
+                print(f"✅ Модель {model_name} ответила успешно.")
                 return response.json()['candidates'][0]['content']['parts'][0]['text']
             elif response.status_code == 503:
+                print(f"⚠️ Модель {model_name} перегружена, ждем...")
                 time.sleep(10)
+            else:
+                print(f"❌ Ошибка API ({model_name}): {response.status_code} - {response.text}")
         except Exception as e:
-            print(f"Ошибка {model_name}: {e}")
+            print(f"❌ Ошибка соединения с {model_name}: {e}")
     return None
 
 def get_strict_hash(text):
-    """Убирает ВСЁ кроме букв и цифр, делает жесткий отпечаток"""
     if not text:
         return None
-    # Удаляем HTML-теги
     clean = re.sub(r'<[^>]+>', '', text)
-    # Оставляем ТОЛЬКО буквы и цифры (удаляем все пробелы и знаки)
     clean = re.sub(r'[^а-яА-ЯёЁa-zA-Z0-9]', '', clean).lower()
-    
-    if len(clean) < 20: # Если текста мало, не проверяем
+    if len(clean) < 20:
         return None
-        
     return hashlib.sha256(clean.encode('utf-8')).hexdigest()
 
 def main():
-    print("Начинаем проверку...")
+    print("--- НАЧАЛО РАБОТЫ ---")
     
     sent_hashes = []
     if os.path.exists("sent_hashes.txt"):
         with open("sent_hashes.txt", "r", encoding="utf-8") as f:
             sent_hashes = [line.strip() for line in f.readlines() if line.strip()]
+    print(f"📂 В памяти сейчас {len(sent_hashes)} хэшей.")
 
     total_new_news = 0
     
     for url in RSS_URLS:
-        print(f"Источник: {url}")
+        print(f"\n🔍 Проверяем источник: {url}")
         feed = feedparser.parse(url)
         
+        print(f"📊 Найдено записей в ленте: {len(feed.entries)}")
         if not feed.entries:
+            print("⚠️ Источник пуст (возможно, сайт блокирует GitHub).")
             continue
             
         news_from_this_source = 0
@@ -85,39 +88,40 @@ def main():
             title = entry.title
             link = entry.link
             
-            # Жесткий блок Euro-Football на всякий случай
             if "euro-football.ru" in link:
+                print(f"🚫 Блокируем Euro-Football: {title}")
                 continue
             
-            # Берем описание (текст)
             summary = entry.get('summary', '')
             
-            # Делаем отпечатки для заголовка и текста
             title_hash = get_strict_hash(title)
             summary_hash = get_strict_hash(summary)
             
-            # Если хоть один отпечаток уже есть в памяти — блокируем
             if (title_hash and title_hash in sent_hashes) or (summary_hash and summary_hash in sent_hashes):
-                print(f"СТОП! Дубль текста/заголовка: {title}")
+                print(f"🛑 СТОП! Дубль: {title}")
                 continue
                 
-            print(f"НОВАЯ новость: {title}")
+            print(f"✨ Найдена НОВАЯ новость: {title}")
+            print("🤖 Отправляем запрос к Gemini...")
+            
             post_text = generate_post_with_gemini(title, link)
             
             if post_text:
                 send_to_telegram(post_text)
-                print("Пост отправлен!")
+                print("🚀 Пост УСПЕШНО отправлен в канал!")
                 
-                # Сохраняем оба отпечатка
                 with open("sent_hashes.txt", "a", encoding="utf-8") as f:
                     if title_hash: f.write(title_hash + "\n")
                     if summary_hash: f.write(summary_hash + "\n")
                     
                 total_new_news += 1
                 news_from_this_source += 1
+            else:
+                print("⚠️ Не удалось сгенерировать текст (Gemini упал).")
         
         time.sleep(2)
 
+    print(f"\n--- ИТОГ: Отправлено новых постов: {total_new_news} ---")
     if total_new_news == 0:
         print("Новых новостей нет.")
 
