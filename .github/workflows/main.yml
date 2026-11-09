@@ -29,3 +29,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python gnews_bot_cn.py
+
+      - name: 5. Save memory (Commit and push)
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add sent_hashes.txt
+          git diff-index --quiet HEAD || git commit -m "Update sent news memory" && git push
